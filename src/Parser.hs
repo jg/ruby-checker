@@ -7,6 +7,18 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+-- a  ::= x | n | - a | a opa a
+
+-- b  ::= true | false | not b | b opb b | a opr a
+
+-- opa ::= + | - | * | /
+
+-- opb ::= and | or
+
+-- opr ::= > | <
+
+-- S  ::= x := a | skip | S1; S2 | ( S ) | if b then S1 else S2 | while b do S
+
 -- Binary booloan operators:
 data BExpr = BoolConst Bool
            | Not BExpr
