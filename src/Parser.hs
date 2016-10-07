@@ -24,26 +24,27 @@ data BExpr = BoolConst Bool
            | Not BExpr
            | BBinary BBinOp BExpr BExpr
            | RBinary RBinOp AExpr AExpr
-            deriving (Show)
+            deriving (Show, Eq)
 
 -- Relational operators:
-data BBinOp = And | Or deriving (Show)
+data BBinOp = And | Or deriving (Show, Eq)
 
 -- Now we define the types for arithmetic expressions:
-data RBinOp = Greater | Less deriving (Show)
+data RBinOp = Greater | Less deriving (Show, Eq)
 
 -- arithmetic operators:
 data AExpr = Var String
            | IntConst Integer
            | Neg AExpr
            | ABinary ABinOp AExpr AExpr
-             deriving (Show)
+             deriving (Show, Eq)
 
+-- arithmetic operations
 data ABinOp = Add
             | Subtract
             | Multiply
             | Divide
-              deriving (Show)
+              deriving (Show, Eq)
 
 -- Finally let's take care of the statements:
 data Stmt = Seq [Stmt]
@@ -51,7 +52,7 @@ data Stmt = Seq [Stmt]
           | If BExpr Stmt Stmt
           | While BExpr Stmt
           | Skip
-            deriving (Show)
+            deriving (Show, Eq)
 
 languageDef =
   emptyDef { Token.commentStart    = "/*"
@@ -82,7 +83,7 @@ identifier = Token.identifier lexer -- parses an identifier
 reserved   = Token.reserved   lexer -- parses a reserved name
 reservedOp = Token.reservedOp lexer -- parses an operator
 parens     = Token.parens     lexer -- parses surrounding parenthesis:
-                                    --   parens p
+                                    -- parens p
                                     -- takes care of the parenthesis and
                                     -- uses p to parse what's inside them
 integer    = Token.integer    lexer -- parses an integer
