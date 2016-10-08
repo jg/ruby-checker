@@ -52,7 +52,7 @@ data Stmt = Seq [Stmt]
           | Assign String AExpr
           | If BExpr Stmt Stmt
           | While BExpr Stmt
-          | Skip
+          | Return
           | Require String
             deriving (Show, Eq)
 
@@ -67,7 +67,7 @@ languageDef =
                                      , "else"
                                      , "while"
                                      , "do"
-                                     , "skip"
+                                     , "return"
                                      , "true"
                                      , "false"
                                      , "not"
@@ -108,7 +108,7 @@ sequenceOfStmt = do
 statement' :: Parser Stmt
 statement' =   ifStmt
            <|> whileStmt
-           <|> skipStmt
+           <|> returnStmt
            <|> assignStmt
            <|> requireStmt
 
@@ -143,8 +143,8 @@ requireStmt :: Parser Stmt = do
   return $ Require fileName
   
 
-skipStmt :: Parser Stmt
-skipStmt = reserved "skip" >> return Skip
+returnStmt :: Parser Stmt
+returnStmt = reserved "return" >> return Return
 
 
 aExpression :: Parser AExpr
