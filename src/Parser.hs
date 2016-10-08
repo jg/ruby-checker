@@ -145,7 +145,7 @@ whileStatement =
 assignStatement :: Parser Statement
 assignStatement =
   do var  <- identifier
-     reservedOp ":="
+     reservedOp "="
      expr <- aExpression
      return $ Assign var expr
 
