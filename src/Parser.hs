@@ -111,7 +111,7 @@ arg = aExpression
 
 args :: Parser [AExpr]
 args = do
-  list <- (sepBy1 arg comma)
+  list <- (sepBy arg comma)
   return $ list
 
 methodStatement :: Parser Statement

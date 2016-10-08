@@ -29,3 +29,13 @@ spec = do
       parseString "# (Return)\n return" `shouldBe` [Return]
     it "handles require" $ do
       parseString "require \"Stuff\"" `shouldBe` [Require "Stuff"]
+    it "handles function definition" $ do
+      let program = unlines ["def foo(a, b)",
+                             "x := 1",
+                             "end"]
+      parseString program `shouldBe` [Method [(Var "a"), (Var "b")] [(Assign "x" (IntConst 1))]]
+    it "handles function definition - empty arg list" $ do
+      let program = unlines ["def foo()",
+                             "x := 1",
+                             "end"]
+      parseString program `shouldBe` [Method [] [(Assign "x" (IntConst 1))]]
