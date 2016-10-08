@@ -8,19 +8,15 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
--- a  ::= x | n | - a | a opa a
+type Program = [Statement]
 
--- b  ::= true | false | not b | b opb b | a opr a
+data Statement = Assign String AExpr
+  | If BExpr Statement Statement
+  | While BExpr Statement
+  | Return
+  | Require String
+  | Method [AExpr] [Statement] deriving (Show, Eq)
 
--- opa ::= + | - | * | /
-
--- opb ::= and | or
-
--- opr ::= > | <
-
--- S  ::= x := a | skip | S1; S2 | ( S ) | if b then S1 else S2 | while b do S
-
--- Binary booloan operators:
 data BExpr = BoolConst Bool
            | Not BExpr
            | BBinary BBinOp BExpr BExpr
@@ -47,14 +43,9 @@ data ABinOp = Add
             | Divide
               deriving (Show, Eq)
 
--- Finally let's take care of the statements:
-data Stmt = Seq [Stmt]
-          | Assign String AExpr
-          | If BExpr Stmt Stmt
-          | While BExpr Stmt
-          | Return
-          | Require String
-            deriving (Show, Eq)
+data Arg = AExpr deriving (Show, Eq)
+
+
 
 languageDef =
   emptyDef { Token.commentStart    = ""
@@ -74,6 +65,8 @@ languageDef =
                                      , "and"
                                      , "or"
                                      , "require"
+                                     , "def"
+                                     , "end"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                      , "<", ">", "and", "or", "not"
@@ -93,27 +86,46 @@ integer    = Token.integer    lexer -- parses an integer
 semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
 stringLiteral = Token.stringLiteral lexer
+comma = Token.comma lexer
 
-whileParser :: Parser Stmt
-whileParser = whiteSpace >> statement
+whileParser :: Parser Program
+whileParser = whiteSpace >> program
 
-statement :: Parser Stmt
-statement =   parens statement <|> sequenceOfStmt
- 
-sequenceOfStmt = do
-  list <- (sepBy1 statement' semi)
-  -- If there's only one statement return it without using Seq.
-  return $ if length list == 1 then head list else Seq list
+program :: Parser Program
+program = sequenceOfStatement
 
-statement' :: Parser Stmt
-statement' =   ifStmt
-           <|> whileStmt
-           <|> returnStmt
-           <|> assignStmt
-           <|> requireStmt
+sequenceOfStatement = do
+  list <- (sepBy1 statement semi)
+  return $ list
 
-ifStmt :: Parser Stmt
-ifStmt =
+statement :: Parser Statement
+statement =   ifStatement
+           <|> whileStatement
+           <|> returnStatement
+           <|> assignStatement
+           <|> requireStatement
+           <|> methodStatement
+
+arg :: Parser AExpr
+arg = aExpression
+
+args :: Parser [AExpr]
+args = do
+  list <- (sepBy1 arg comma)
+  return $ list
+
+methodStatement :: Parser Statement
+methodStatement = do
+  reserved "def"
+  ident <- identifier
+  args <- parens args
+  body <- sequenceOfStatement
+  reserved "end"
+  return $ Method args body
+
+
+ifStatement :: Parser Statement
+ifStatement =
   do reserved "if"
      cond  <- bExpression
      reserved "then"
@@ -122,29 +134,29 @@ ifStmt =
      stmt2 <- statement
      return $ If cond stmt1 stmt2
 
-whileStmt :: Parser Stmt
-whileStmt =
+whileStatement :: Parser Statement
+whileStatement =
   do reserved "while"
      cond <- bExpression
      reserved "do"
      stmt <- statement
      return $ While cond stmt
 
-assignStmt :: Parser Stmt
-assignStmt =
+assignStatement :: Parser Statement
+assignStatement =
   do var  <- identifier
      reservedOp ":="
      expr <- aExpression
      return $ Assign var expr
 
-requireStmt :: Parser Stmt = do
+requireStatement :: Parser Statement = do
   reserved "require"
   fileName <- stringLiteral
   return $ Require fileName
   
 
-returnStmt :: Parser Stmt
-returnStmt = reserved "return" >> return Return
+returnStatement :: Parser Statement
+returnStatement = reserved "return" >> return Return
 
 
 aExpression :: Parser AExpr
@@ -183,13 +195,13 @@ rExpression =
 relation =   (reservedOp ">" >> return Greater)
          <|> (reservedOp "<" >> return Less)
 
-parseString :: String -> Stmt
+parseString :: String -> Program
 parseString str =
   case parse whileParser "" str of
     Left e  -> error $ show e
     Right r -> r
 
-parseFile :: String -> IO Stmt
+parseFile :: String -> IO Program
 parseFile file =
   do program  <- readFile file
      case parse whileParser "" program of
