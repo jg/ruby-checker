@@ -29,4 +29,5 @@ spec = do
       parseString "while (true) do skip" `shouldBe` While (BoolConst True) Skip
     it "handles comments" $ do
       parseString "# (Skip)\n skip" `shouldBe` Skip
-      
+    it "handles comments" $ do
+      parseString "require \"Stuff\"" `shouldBe` Require "Stuff"

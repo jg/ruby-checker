@@ -1,3 +1,4 @@
+{-# LANGUAGE ExplicitForAll, ScopedTypeVariables #-}
 module Parser where
 
 import System.IO
@@ -52,6 +53,7 @@ data Stmt = Seq [Stmt]
           | If BExpr Stmt Stmt
           | While BExpr Stmt
           | Skip
+          | Require String
             deriving (Show, Eq)
 
 languageDef =
@@ -71,6 +73,7 @@ languageDef =
                                      , "not"
                                      , "and"
                                      , "or"
+                                     , "require"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                      , "<", ">", "and", "or", "not"
@@ -89,6 +92,7 @@ parens     = Token.parens     lexer -- parses surrounding parenthesis:
 integer    = Token.integer    lexer -- parses an integer
 semi       = Token.semi       lexer -- parses a semicolon
 whiteSpace = Token.whiteSpace lexer -- parses whitespace
+stringLiteral = Token.stringLiteral lexer
 
 whileParser :: Parser Stmt
 whileParser = whiteSpace >> statement
@@ -106,6 +110,7 @@ statement' =   ifStmt
            <|> whileStmt
            <|> skipStmt
            <|> assignStmt
+           <|> requireStmt
 
 ifStmt :: Parser Stmt
 ifStmt =
@@ -131,6 +136,12 @@ assignStmt =
      reservedOp ":="
      expr <- aExpression
      return $ Assign var expr
+
+requireStmt :: Parser Stmt = do
+  reserved "require"
+  fileName <- stringLiteral
+  return $ Require fileName
+  
 
 skipStmt :: Parser Stmt
 skipStmt = reserved "skip" >> return Skip
