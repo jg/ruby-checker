@@ -1,0 +1,10 @@
+  -*- mode: org; fill-column:65 -*-
+
+* features
+- function return type
+- function argument type
+- if function is defined on object
+- if variable is defined in scope
+- null deferences
+- uncatched exceptions
+- interfaces

@@ -1,0 +1,9 @@
+require 'stuff'
+
+class A < B
+  CONSTANT = [1, 2, 3]
+
+  def initialize
+    @a = 12
+  end
+end

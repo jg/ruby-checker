@@ -55,9 +55,9 @@ data Stmt = Seq [Stmt]
             deriving (Show, Eq)
 
 languageDef =
-  emptyDef { Token.commentStart    = "/*"
-           , Token.commentEnd      = "*/"
-           , Token.commentLine     = "//"
+  emptyDef { Token.commentStart    = ""
+           , Token.commentEnd      = ""
+           , Token.commentLine     = "#"
            , Token.identStart      = letter
            , Token.identLetter     = alphaNum
            , Token.reservedNames   = [ "if"
