@@ -8,14 +8,15 @@ import Text.ParserCombinators.Parsec.Expr
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
-type Program = [Statement]
+data Program = Seq [Statement]
+  | ClassDefinition String (Maybe String) Program deriving (Show, Eq)
 
 data Statement = Assign String AExpr
   | If BExpr Statement Statement
   | While BExpr Statement
   | Return
   | Require String
-  | Method [AExpr] [Statement] deriving (Show, Eq)
+  | Method [AExpr] Program deriving (Show, Eq)
 
 data BExpr = BoolConst Bool
            | Not BExpr
@@ -67,6 +68,7 @@ languageDef =
                                      , "require"
                                      , "def"
                                      , "end"
+                                     , "class"
                                      ]
            , Token.reservedOpNames = ["+", "-", "*", "/", ":="
                                      , "<", ">", "and", "or", "not"
@@ -92,11 +94,27 @@ whileParser :: Parser Program
 whileParser = whiteSpace >> program
 
 program :: Parser Program
-program = sequenceOfStatement
+program = sequenceOfStatement <|> classDefinition
 
+classDefinition :: Parser Program
+classDefinition = do
+  reserved "class"
+  className <- identifier
+  superClassName <- optionMaybe superClassName
+  body <- sequenceOfStatement
+  reserved "end"
+  return $ ClassDefinition className superClassName body
+
+superClassName :: Parser String
+superClassName = do
+  reservedOp "<"
+  name <- identifier
+  return name
+
+sequenceOfStatement :: Parser Program
 sequenceOfStatement = do
-  list <- (sepBy1 statement semi)
-  return $ list
+  list <- (sepBy1 statement (optional $ many newline))
+  return $ Seq list
 
 statement :: Parser Statement
 statement =   ifStatement
@@ -118,7 +136,7 @@ methodStatement :: Parser Statement
 methodStatement = do
   reserved "def"
   ident <- identifier
-  args <- parens args
+  args <- option [] $ parens args
   body <- sequenceOfStatement
   reserved "end"
   return $ Method args body
