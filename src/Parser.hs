@@ -1,7 +1,6 @@
 {-# LANGUAGE ExplicitForAll, ScopedTypeVariables #-}
 module Parser where
 
-import System.IO
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
@@ -9,42 +8,52 @@ import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
 data Program = Seq [Statement]
-  | ClassDefinition String (Maybe String) Program deriving (Show, Eq)
+  | ClassDefinition String (Maybe String) Program Info deriving (Show, Eq)
 
-data Statement = Assign String AExpr
-  | If BExpr Statement Statement
-  | While BExpr Statement
-  | Return
-  | Require String
-  | Method [AExpr] Program deriving (Show, Eq)
+data Info = Info {
+  sourceName :: String
+  , lineNumber :: Int
+  , columnNumber :: Int
+  } deriving (Show, Eq)
+
+data Statement = Assign String AExpr Info
+  | If BExpr Program Program Info
+  | While BExpr Program Info
+  | Return Info
+  | Require String Info
+  | Method [AExpr] Program Info deriving (Show, Eq)
 
 data BExpr = BoolConst Bool
-           | Not BExpr
-           | BBinary BBinOp BExpr BExpr
-           | RBinary RBinOp AExpr AExpr
+           | Not BExpr Info
+           | BBinary BBinOp BExpr BExpr Info
+           | RBinary RBinOp AExpr AExpr Info
             deriving (Show, Eq)
 
 -- Relational operators:
-data BBinOp = And | Or deriving (Show, Eq)
+data BBinOp = And | Or 
+            deriving (Show, Eq)
 
 -- Now we define the types for arithmetic expressions:
-data RBinOp = Greater | Less deriving (Show, Eq)
+data RBinOp = Greater
+            | Less
+            deriving (Show, Eq)
 
 -- arithmetic operators:
-data AExpr = Var String
-           | IntConst Integer
-           | Neg AExpr
-           | ABinary ABinOp AExpr AExpr
+data AExpr = Var String 
+           | IntConst Integer 
+           | Neg AExpr Info
+           | ABinary ABinOp AExpr AExpr Info
              deriving (Show, Eq)
 
 -- arithmetic operations
-data ABinOp = Add
-            | Subtract
-            | Multiply
-            | Divide
+data ABinOp = Add 
+            | Subtract 
+            | Multiply 
+            | Divide 
               deriving (Show, Eq)
 
-data Arg = AExpr deriving (Show, Eq)
+data Arg = AExpr Info
+  deriving (Show, Eq)
 
 
 
@@ -96,14 +105,19 @@ whileParser = whiteSpace >> program
 program :: Parser Program
 program = sequenceOfStatement <|> classDefinition
 
+getInfo :: SourcePos -> Info
+getInfo sp =
+  Info (Text.ParserCombinators.Parsec.sourceName sp) (sourceLine sp) (sourceColumn sp)
+
 classDefinition :: Parser Program
 classDefinition = do
+  pos <- getPosition
   reserved "class"
   className <- identifier
   superClassName <- optionMaybe superClassName
   body <- sequenceOfStatement
   reserved "end"
-  return $ ClassDefinition className superClassName body
+  return $ ClassDefinition className superClassName body (getInfo pos)
 
 superClassName :: Parser String
 superClassName = do
@@ -134,48 +148,57 @@ args = do
 
 methodStatement :: Parser Statement
 methodStatement = do
+  pos <- getPosition
   reserved "def"
   ident <- identifier
   args <- option [] $ parens args
   body <- sequenceOfStatement
   reserved "end"
-  return $ Method args body
+  return $ Method args body (getInfo pos)
 
 
 ifStatement :: Parser Statement
 ifStatement =
-  do reserved "if"
+  do
+     pos <- getPosition
+     reserved "if"
      cond  <- bExpression
      reserved "then"
-     stmt1 <- statement
+     stmt1 <- sequenceOfStatement
      reserved "else"
-     stmt2 <- statement
-     return $ If cond stmt1 stmt2
+     stmt2 <- sequenceOfStatement
+     return $ If cond stmt1 stmt2 (getInfo pos)
 
 whileStatement :: Parser Statement
-whileStatement =
-  do reserved "while"
+whileStatement = do
+     pos <- getPosition
+     reserved "while"
      cond <- bExpression
      reserved "do"
-     stmt <- statement
-     return $ While cond stmt
+     stmt <- sequenceOfStatement
+     reserved "end"
+     return $ While cond stmt (getInfo pos)
 
 assignStatement :: Parser Statement
-assignStatement =
-  do var  <- identifier
+assignStatement = do
+     pos <- getPosition
+     var  <- identifier
      reservedOp "="
      expr <- aExpression
-     return $ Assign var expr
+     return $ Assign var expr (getInfo pos)
 
 requireStatement :: Parser Statement = do
+  pos <- getPosition
   reserved "require"
   fileName <- stringLiteral
-  return $ Require fileName
+  return $ Require fileName (getInfo pos)
   
 
 returnStatement :: Parser Statement
-returnStatement = reserved "return" >> return Return
-
+returnStatement = do
+  pos <- getPosition
+  reserved "return"
+  return $ Return (getInfo pos)
 
 aExpression :: Parser AExpr
 aExpression = buildExpressionParser aOperators aTerm
@@ -183,17 +206,36 @@ aExpression = buildExpressionParser aOperators aTerm
 bExpression :: Parser BExpr
 bExpression = buildExpressionParser bOperators bTerm
 
-aOperators = [ [Prefix (reservedOp "-"   >> return (Neg             ))          ]
-             , [Infix  (reservedOp "*"   >> return (ABinary Multiply)) AssocLeft,
-                Infix  (reservedOp "/"   >> return (ABinary Divide  )) AssocLeft]
-             , [Infix  (reservedOp "+"   >> return (ABinary Add     )) AssocLeft,
-                Infix  (reservedOp "-"   >> return (ABinary Subtract)) AssocLeft]
-              ]
-
-bOperators = [ [Prefix (reservedOp "not" >> return (Not             ))          ]
-             , [Infix  (reservedOp "and" >> return (BBinary And     )) AssocLeft,
-                Infix  (reservedOp "or"  >> return (BBinary Or      )) AssocLeft]
+aOperators = [ [prefix "-" (Neg)]
+             , [binary "*" (ABinary Multiply) AssocLeft]
+             , [binary "/" (ABinary Divide) AssocLeft]
+             , [binary "+" (ABinary Add) AssocLeft]
+             , [binary "-" (ABinary Subtract) AssocLeft]
              ]
+
+bOperators = [ [prefix "not" (Not)]
+             , [binary "and" (BBinary And) AssocLeft]
+             , [binary "or"  (BBinary Or) AssocLeft]
+             ]
+
+
+prefix name fun = Prefix (prefix' name fun)
+
+prefix' :: String -> (a -> Info -> a) -> Parser (a -> a)
+prefix' name f = do
+  pos <- getPosition
+  reservedOp name
+  return $ \expr -> (f expr (getInfo pos))
+
+binary  name fun assoc = Infix (binary' name fun) assoc
+binary' ::
+  String ->
+  (a -> a -> Info -> a) ->
+  Parser (a -> a -> a)
+binary' name f = do
+  pos <- getPosition
+  reservedOp name
+  return $ \aexpr1 aexpr2 -> (f aexpr1 aexpr2 (getInfo pos))
 
 aTerm =  parens aExpression
      <|> liftM Var identifier
@@ -204,11 +246,12 @@ bTerm =  parens bExpression
      <|> (reserved "false" >> return (BoolConst False))
      <|> rExpression
 
-rExpression =
-  do a1 <- aExpression
+rExpression = do
+     pos <- getPosition
+     a1 <- aExpression
      op <- relation
      a2 <- aExpression
-     return $ RBinary op a1 a2
+     return $ RBinary op a1 a2 (getInfo pos)
  
 relation =   (reservedOp ">" >> return Greater)
          <|> (reservedOp "<" >> return Less)

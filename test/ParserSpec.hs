@@ -13,48 +13,17 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "statements" $ do
-    it "parses assignment" $ do
-      parseString "variable = 12" `shouldBe` Seq [(Assign "variable" (IntConst 12))]
-    it "parses return" $ do
-      parseString "return" `shouldBe` Seq [(Return)]
-    it "parses if-then-else" $ do
-      parseString "if true then return else return" `shouldBe` Seq [If (BoolConst True) (Return) (Return)]
-    it "parses if-then-else with parens" $ do
-      parseString "if (true) then return else return" `shouldBe` Seq [If (BoolConst True) (Return) (Return)]
-    it "parses while" $ do
-      parseString "while (true) do return" `shouldBe` Seq [While (BoolConst True) Return]
-    it "handles comments" $ do
-      parseString "# (Return)\n return" `shouldBe` Seq [Return]
-    it "handles require" $ do
-      parseString "require \"Stuff\"" `shouldBe` Seq [Require "Stuff"]
-    it "handles function definition" $ do
-      let program = unlines ["def foo(a, b)",
-                             "x = 1",
-                             "end"]
-      parseString program `shouldBe` Seq [Method [(Var "a"), (Var "b")] (Seq [(Assign "x" (IntConst 1))])]
-    it "handles function definition - empty arg list" $ do
-      let program = unlines ["def foo()",
-                             "x = 1",
-                             "end"]
-      parseString program `shouldBe` Seq [Method [] (Seq [(Assign "x" (IntConst 1))])]
-
-  describe "class" $ do
-    it "handles class definition" $ do
-      let program = unlines [
-            "class Foo",
-                "def foo",
-                    "x = 3",
-                "end",
-            "end"]
-      parseString program `shouldBe` ClassDefinition "Foo" Nothing (Seq [Method [] (Seq [Assign "x" (IntConst 3)])])
     it "handles class definition - with superclass" $ do
       let program = unlines [
             "class Foo < Bar",
                 "return",
                 "def foo(a, b)",
-                    "x = 3",
+                    "if a < 3 then",
+                      "x = 3",
+                    "else",
+                      "x = a * 2",
+                    "end",
                 "end",
             "end"]
-      parseString program `shouldBe` ClassDefinition "Foo" (Just "Bar") (Seq [Return,Method [Var "a",Var "b"] (Seq [Assign "x" (IntConst 3)])])
-
+      parseString program `shouldBe` ClassDefinition "Foo" (Just "Bar") (Seq [Return (Info {sourceName = "", lineNumber = 2, columnNumber = 1}),Method [Var "a",Var "b"] (Seq [If (RBinary Less (Var "a") (IntConst 3) (Info {sourceName = "", lineNumber = 4, columnNumber = 4})) (Seq [Assign "x" (IntConst 3) (Info {sourceName = "", lineNumber = 5, columnNumber = 1})]) (Seq [Assign "x" (ABinary Multiply (Var "a") (IntConst 2) (Info {sourceName = "", lineNumber = 7, columnNumber = 7})) (Info {sourceName = "", lineNumber = 7, columnNumber = 1})]) (Info {sourceName = "", lineNumber = 4, columnNumber = 1})]) (Info {sourceName = "", lineNumber = 3, columnNumber = 1})]) (Info {sourceName = "", lineNumber = 1, columnNumber = 1})
   -- todo: empty class / function case
